@@ -28,19 +28,38 @@ def to_percent(y, position):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test model for articulated object dataset.")
+    parser = argparse.ArgumentParser(
+        description="Test model for articulated object dataset.")
     parser.add_argument('--model-dir', type=str, default='models/')
     parser.add_argument('--model-name', type=str, default='test_lstm')
-    parser.add_argument('--test-dir', type=str, default='../data/test/microwave/')
+    parser.add_argument('--test-dir',
+                        type=str,
+                        default='../data/test/microwave/')
     parser.add_argument('--output-dir', type=str, default='./plots/')
-    parser.add_argument('--ntest', type=int, default=100, help='number of test samples (n_object_instants)')
-    parser.add_argument('--ndof', type=int, default=1, help='how many degrees of freedom in the object class?')
+    parser.add_argument('--ntest',
+                        type=int,
+                        default=100,
+                        help='number of test samples (n_object_instants)')
+    parser.add_argument(
+        '--ndof',
+        type=int,
+        default=1,
+        help='how many degrees of freedom in the object class?')
     parser.add_argument('--batch', type=int, default=40, help='batch size')
     parser.add_argument('--nwork', type=int, default=8, help='num_workers')
     parser.add_argument('--device', type=int, default=0, help='cuda device')
-    parser.add_argument('--dual-quat', action='store_true', default=False, help='Dual quaternion representation or not')
-    parser.add_argument('--model-type', type=str, default='lstm', help='screw, noLSTM, 2imgs, l2, baseline')
-    parser.add_argument('--load-wts', action='store_true', default=False, help='Should load model wts from prior run?')
+    parser.add_argument('--dual-quat',
+                        action='store_true',
+                        default=False,
+                        help='Dual quaternion representation or not')
+    parser.add_argument('--model-type',
+                        type=str,
+                        default='lstm',
+                        help='screw, noLSTM, 2imgs, l2, baseline')
+    parser.add_argument('--load-wts',
+                        action='store_true',
+                        default=False,
+                        help='Should load model wts from prior run?')
     parser.add_argument('--obj', type=str, default='microwave')
     args = parser.parse_args()
 
@@ -50,7 +69,8 @@ if __name__ == "__main__":
     all_dist_err_mean = torch.empty(0)
     all_dist_err_std = torch.empty(0)
 
-    output_dir = os.path.join(os.path.abspath(args.output_dir), args.model_type, args.model_name)
+    output_dir = os.path.join(os.path.abspath(args.output_dir),
+                              args.model_type, args.model_name)
     os.makedirs(output_dir, exist_ok=True)
 
     if torch.cuda.is_available():
@@ -70,29 +90,37 @@ if __name__ == "__main__":
 
         print("Testing Model: Abbattematteo et al.")
         bounds = np.load(os.path.join(args.test_dir, 'bounds.npy'))
-        keep_columns = np.load(os.path.abspath('../GeneralizingKinematics/keep_columns_' + args.obj + '.npy'))
-        one_columns = np.load(os.path.abspath('../GeneralizingKinematics/one_columns_' + args.obj + '.npy'))
+        keep_columns = np.load(
+            os.path.abspath('../GeneralizingKinematics/keep_columns_' +
+                            args.obj + '.npy'))
+        one_columns = np.load(
+            os.path.abspath('../GeneralizingKinematics/one_columns_' +
+                            args.obj + '.npy'))
         testset = MixtureDataset(args.ntest,
                                  args.test_dir,
                                  n_dof=args.ndof,
                                  normalize=True,
                                  bounds=bounds,
                                  keep_columns=keep_columns,
-                                 one_columns=one_columns
-                                 )
+                                 one_columns=one_columns)
 
         best_model = KinematicMDNv3(n_gaussians=20,
                                     out_features=testset.labels.shape[1])
-        best_model.load_state_dict(torch.load(os.path.join(args.model_dir, args.model_name + '.net')))
+        best_model.load_state_dict(
+            torch.load(os.path.join(args.model_dir, args.model_name + '.net')))
         best_model.float().to(device)
         best_model.eval()
 
-        testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch,
-                                                 shuffle=False, num_workers=args.nwork,
+        testloader = torch.utils.data.DataLoader(testset,
+                                                 batch_size=args.batch,
+                                                 shuffle=False,
+                                                 num_workers=args.nwork,
                                                  pin_memory=True)
 
-        all_labels = torch.zeros(args.ntest, testloader.dataset.full_labels.shape[1])
-        all_output = torch.zeros(args.ntest, testloader.dataset.full_labels.shape[1])
+        all_labels = torch.zeros(args.ntest,
+                                 testloader.dataset.full_labels.shape[1])
+        all_output = torch.zeros(args.ntest,
+                                 testloader.dataset.full_labels.shape[1])
 
         with torch.no_grad():
             for i, X in enumerate(testloader):
@@ -101,52 +129,69 @@ if __name__ == "__main__":
                 output = mdn.sample(pi, sigma, mu)
 
                 # expand labels and output back to full dataset size
-                output = expand_labels(testloader.dataset.full_labels,
-                                       output,
+                output = expand_labels(testloader.dataset.full_labels, output,
                                        testloader.dataset.keep_columns,
                                        testloader.dataset.one_columns)
 
-                labels = expand_labels(testloader.dataset.full_labels,
-                                       labels,
+                labels = expand_labels(testloader.dataset.full_labels, labels,
                                        testloader.dataset.keep_columns,
                                        testloader.dataset.one_columns)
 
-                all_labels[i * labels.shape[0]:(i + 1) * labels.shape[0], :] = labels
-                all_output[i * labels.shape[0]:(i + 1) * labels.shape[0], :] = output
+                all_labels[i * labels.shape[0]:(i + 1) *
+                           labels.shape[0], :] = labels
+                all_output[i * labels.shape[0]:(i + 1) *
+                           labels.shape[0], :] = output
 
         # interpret and convert to real.
-        ground_truth_params = convert_dict_to_real(interpret_labels(all_labels, args.ndof), bounds, args.ndof)
-        param_dict = convert_dict_to_real(interpret_labels(all_output, args.ndof), bounds, args.ndof)
+        ground_truth_params = convert_dict_to_real(
+            interpret_labels(all_labels, args.ndof), bounds, args.ndof)
+        param_dict = convert_dict_to_real(
+            interpret_labels(all_output, args.ndof), bounds, args.ndof)
 
         n_imgs_per_obj = 16
         axis_len = 7
         config_len = 1
 
-        real_axis = ground_truth_params['axis'].view(-1, args.ndof, n_imgs_per_obj, axis_len)  # Axis len 7
-        real_net_axis = param_dict['axis'].view(-1, args.ndof, n_imgs_per_obj, axis_len)
+        real_axis = ground_truth_params['axis'].view(-1, args.ndof,
+                                                     n_imgs_per_obj,
+                                                     axis_len)  # Axis len 7
+        real_net_axis = param_dict['axis'].view(-1, args.ndof, n_imgs_per_obj,
+                                                axis_len)
 
-        all_dist_err_std, all_dist_err_mean = torch.std_mean(
-            torch.norm(real_axis[:, :, :, :3] - real_net_axis[:, :, :, :3], dim=-1), dim=-1)
+        all_dist_err_std, all_dist_err_mean = torch.std_mean(torch.norm(
+            real_axis[:, :, :, :3] - real_net_axis[:, :, :, :3], dim=-1),
+                                                             dim=-1)
         all_dist_err_std = all_dist_err_std.squeeze_().cpu()
         all_dist_err_mean = all_dist_err_mean.squeeze_().cpu()
 
         all_ori_err_std, all_ori_err_mean = torch.std_mean(
-            difference_between_quaternions_tensors(real_axis[:, :, :, 3:7], real_net_axis[:, :, :, 3:7]), dim=-1)
+            difference_between_quaternions_tensors(real_axis[:, :, :, 3:7],
+                                                   real_net_axis[:, :, :,
+                                                                 3:7]),
+            dim=-1)
         all_ori_err_mean = all_ori_err_mean.squeeze_().cpu()
         all_ori_err_std = all_ori_err_std.squeeze_().cpu()
 
         # Configuration error
-        real_configs = ground_truth_params['config'].view(-1, args.ndof, n_imgs_per_obj, config_len)  # Config len 1
-        net_configs = param_dict['config'].view(-1, args.ndof, n_imgs_per_obj, config_len)
+        real_configs = ground_truth_params['config'].view(
+            -1, args.ndof, n_imgs_per_obj, config_len)  # Config len 1
+        net_configs = param_dict['config'].view(-1, args.ndof, n_imgs_per_obj,
+                                                config_len)
 
-        all_q_err_std, all_q_err_mean = torch.std_mean(
-            torch.norm(real_configs[:, :, :, :] - net_configs[:, :, :, :], dim=-1), dim=-1)
+        all_q_err_std, all_q_err_mean = torch.std_mean(torch.norm(
+            real_configs[:, :, :, :] - net_configs[:, :, :, :], dim=-1),
+                                                       dim=-1)
         all_q_err_std = all_q_err_std.squeeze_().cpu()
         all_q_err_mean = all_q_err_mean.squeeze_().cpu()
 
         x_axis = np.arange(np.shape(all_q_err_mean)[0])
         fig = plt.figure(3)
-        plt.errorbar(x_axis, all_q_err_mean.numpy(), all_q_err_std.numpy(), capsize=3., capthick=1., ls='none')
+        plt.errorbar(x_axis,
+                     all_q_err_mean.numpy(),
+                     all_q_err_std.numpy(),
+                     capsize=3.,
+                     capthick=1.,
+                     ls='none')
         plt.xlabel("Test object number")
         plt.ylabel("Error in Config")
         plt.title("Test error in Configurations")
@@ -166,7 +211,10 @@ if __name__ == "__main__":
             x_label = "Error (rad)"
             title = "Histogram of mean test errors in theta"
 
-        plt.hist(data, bins=np.arange(0., data.max() + binwidth, binwidth), density=True)
+        plt.hist(data,
+                 bins=np.arange(0.,
+                                data.max() + binwidth, binwidth),
+                 density=True)
         percent_scale = 1 / binwidth
         plt.gca().yaxis.set_major_formatter(formatter)
         plt.xlabel(x_label)
@@ -176,10 +224,16 @@ if __name__ == "__main__":
         plt.savefig(output_dir + '/config_err_hist.png')
         plt.close(fig)
 
-        s_data = {'labels': all_labels.cpu().numpy(), 'predictions': all_output.cpu().numpy(),
-                  'ori_err_mean': all_ori_err_mean.numpy(), 'ori_err_std': all_ori_err_std.numpy(),
-                  'dist_err_mean': all_dist_err_mean.numpy(), 'dist_err_std': all_dist_err_std.numpy(),
-                  'q_err_mean': all_q_err_mean.numpy(), 'q_err_std': all_q_err_std.numpy()}
+        s_data = {
+            'labels': all_labels.cpu().numpy(),
+            'predictions': all_output.cpu().numpy(),
+            'ori_err_mean': all_ori_err_mean.numpy(),
+            'ori_err_std': all_ori_err_std.numpy(),
+            'dist_err_mean': all_dist_err_mean.numpy(),
+            'dist_err_std': all_dist_err_std.numpy(),
+            'q_err_mean': all_q_err_mean.numpy(),
+            'q_err_std': all_q_err_std.numpy()
+        }
 
     else:
         if args.model_type == '2imgs':
@@ -189,19 +243,27 @@ if __name__ == "__main__":
 
         elif args.model_type == 'noLSTM':
             print("Testing Model: ScrewNet_noLSTM")
-            best_model = ScrewNet_NoLSTM(seq_len=16, fc_replace_lstm_dim=1000, n_output=8)
+            best_model = ScrewNet_NoLSTM(seq_len=16,
+                                         fc_replace_lstm_dim=1000,
+                                         n_output=8)
             testset = ArticulationDataset(args.ntest, args.test_dir)
 
         else:
             print("Testing ScrewNet")
-            best_model = ScrewNet(lstm_hidden_dim=1000, n_lstm_hidden_layers=1, n_output=8)
+            best_model = ScrewNet(lstm_hidden_dim=1000,
+                                  n_lstm_hidden_layers=1,
+                                  n_output=8)
             testset = ArticulationDataset(args.ntest, args.test_dir)
 
-        best_model.load_state_dict(torch.load(os.path.join(args.model_dir, args.model_name + '.net')))
+        best_model.load_state_dict(
+            torch.load(os.path.join(args.model_dir, args.model_name + '.net')))
         best_model.float().to(device)
         best_model.eval()
 
-        testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch, shuffle=False, num_workers=args.nwork,
+        testloader = torch.utils.data.DataLoader(testset,
+                                                 batch_size=args.batch,
+                                                 shuffle=False,
+                                                 num_workers=args.nwork,
                                                  pin_memory=True)
 
         all_q_err_mean = torch.empty(0)
@@ -226,27 +288,39 @@ if __name__ == "__main__":
                     y_pred = y_pred.view(y_pred.size(0), -1, 8)
                     y_pred = y_pred[:, 1:, :]
 
-                labels = interpret_labels_ours(labels, testset.normalization_factor)  # Scaling m appropriately
-                y_pred = interpret_labels_ours(y_pred, testset.normalization_factor)
+                labels = interpret_labels_ours(
+                    labels,
+                    testset.normalization_factor)  # Scaling m appropriately
+                y_pred = interpret_labels_ours(y_pred,
+                                               testset.normalization_factor)
 
                 # Orientation error
                 ori_err_std, ori_err_mean = torch.std_mean(torch.acos(
-                    torch.mul(labels[:, :, :3], y_pred[:, :, :3]).sum(dim=-1) / (
-                            torch.norm(labels[:, :, :3], dim=-1) * torch.norm(y_pred[:, :, :3], dim=-1))), dim=-1)
-                all_ori_err_mean = torch.cat((all_ori_err_mean, ori_err_mean.cpu()))
-                all_ori_err_std = torch.cat((all_ori_err_std, ori_err_std.cpu()))
+                    torch.mul(labels[:, :, :3], y_pred[:, :, :3]).sum(dim=-1) /
+                    (torch.norm(labels[:, :, :3], dim=-1) *
+                     torch.norm(y_pred[:, :, :3], dim=-1))),
+                                                           dim=-1)
+                all_ori_err_mean = torch.cat(
+                    (all_ori_err_mean, ori_err_mean.cpu()))
+                all_ori_err_std = torch.cat(
+                    (all_ori_err_std, ori_err_std.cpu()))
 
                 # Distance b/w plucker lines in cm
-                dist_err_std, dist_err_mean = torch.std_mean(distance_bw_plucker_lines(labels, y_pred), dim=-1)
-                all_dist_err_mean = torch.cat((all_dist_err_mean, dist_err_mean.cpu()))
-                all_dist_err_std = torch.cat((all_dist_err_std, dist_err_std.cpu()))
+                dist_err_std, dist_err_mean = torch.std_mean(
+                    distance_bw_plucker_lines(labels, y_pred), dim=-1)
+                all_dist_err_mean = torch.cat(
+                    (all_dist_err_mean, dist_err_mean.cpu()))
+                all_dist_err_std = torch.cat(
+                    (all_dist_err_std, dist_err_std.cpu()))
 
                 # Configurational errors
-                q_err_std, q_err_mean = torch.std_mean(torch.abs(labels[:, :, 6] - y_pred[:, :, 6]), dim=-1)
+                q_err_std, q_err_mean = torch.std_mean(
+                    torch.abs(labels[:, :, 6] - y_pred[:, :, 6]), dim=-1)
                 all_q_err_mean = torch.cat((all_q_err_mean, q_err_mean.cpu()))
                 all_q_err_std = torch.cat((all_q_err_std, q_err_std.cpu()))
 
-                d_err_std, d_err_mean = torch.std_mean(torch.abs(labels[:, :, 7] - y_pred[:, :, 7]), dim=-1)
+                d_err_std, d_err_mean = torch.std_mean(
+                    torch.abs(labels[:, :, 7] - y_pred[:, :, 7]), dim=-1)
                 all_d_err_mean = torch.cat((all_d_err_std, d_err_mean.cpu()))
                 all_d_err_std = torch.cat((all_d_err_std, d_err_std.cpu()))
 
@@ -258,7 +332,12 @@ if __name__ == "__main__":
         x_axis = np.arange(all_q_err_mean.size(0))
 
         fig = plt.figure(3)
-        plt.errorbar(x_axis, all_q_err_mean.numpy(), all_q_err_std.numpy(), capsize=3., capthick=1., ls='none')
+        plt.errorbar(x_axis,
+                     all_q_err_mean.numpy(),
+                     all_q_err_std.numpy(),
+                     capsize=3.,
+                     capthick=1.,
+                     ls='none')
         plt.xlabel("Test object number")
         plt.ylabel("Error (rad)")
         plt.title("Test error in theta")
@@ -269,7 +348,10 @@ if __name__ == "__main__":
         fig = plt.figure(31)
         data = all_q_err_mean.numpy()
         binwidth = 0.005
-        plt.hist(data, bins=np.arange(0., max(data) + binwidth, binwidth), density=True)
+        plt.hist(data,
+                 bins=np.arange(0.,
+                                max(data) + binwidth, binwidth),
+                 density=True)
         percent_scale = 1 / binwidth
         plt.gca().yaxis.set_major_formatter(formatter)
         plt.xlabel("Error (rad)")
@@ -280,7 +362,11 @@ if __name__ == "__main__":
         plt.close(fig)
 
         fig = plt.figure(4)
-        plt.errorbar(x_axis, all_d_err_mean.numpy() * 100., all_d_err_std.numpy() * 100., capsize=3., capthick=1.,
+        plt.errorbar(x_axis,
+                     all_d_err_mean.numpy() * 100.,
+                     all_d_err_std.numpy() * 100.,
+                     capsize=3.,
+                     capthick=1.,
                      ls='none')
         plt.xlabel("Test object number")
         plt.ylabel("Error (cm)")
@@ -292,7 +378,10 @@ if __name__ == "__main__":
         fig = plt.figure(41)
         data = copy.copy(all_d_err_mean.numpy()) * 100.
         binwidth = 0.5
-        plt.hist(data, bins=np.arange(0., max(data) + binwidth, binwidth), density=True)
+        plt.hist(data,
+                 bins=np.arange(0.,
+                                max(data) + binwidth, binwidth),
+                 density=True)
         percent_scale = 1 / binwidth
         plt.gca().yaxis.set_major_formatter(formatter)
         plt.xlabel("Error (cm)")
@@ -302,19 +391,32 @@ if __name__ == "__main__":
         plt.savefig(output_dir + '/d_err_hist.png')
         plt.close(fig)
 
-        s_data = {'labels': all_labels.numpy(), 'predictions': all_preds.numpy(),
-                  'ori_err_mean': all_ori_err_mean.numpy(), 'ori_err_std': all_ori_err_std.numpy(),
-                  'dist_err_mean': all_dist_err_mean.numpy(), 'dist_err_std': all_dist_err_std.numpy(),
-                  'theta_err_mean': all_q_err_mean.numpy(), 'theta_err_std': all_q_err_std.numpy(),
-                  'd_err_mean': all_d_err_mean.numpy(), 'd_err_std': all_d_err_std.numpy()}
-
+        s_data = {
+            'labels': all_labels.numpy(),
+            'predictions': all_preds.numpy(),
+            'ori_err_mean': all_ori_err_mean.numpy(),
+            'ori_err_std': all_ori_err_std.numpy(),
+            'dist_err_mean': all_dist_err_mean.numpy(),
+            'dist_err_std': all_dist_err_std.numpy(),
+            'theta_err_mean': all_q_err_mean.numpy(),
+            'theta_err_std': all_q_err_std.numpy(),
+            'd_err_mean': all_d_err_mean.numpy(),
+            'd_err_std': all_d_err_std.numpy()
+        }
     """ Common Plots"""
     # Plot variation of screw axis
     x_axis = np.arange(all_ori_err_mean.size(0))
 
     fig = plt.figure(1)
-    plt.errorbar(x_axis, all_ori_err_mean.numpy(), all_ori_err_std.numpy(), marker='o', mfc='blue', ms=4., capsize=3.,
-                 capthick=1., ls='none')
+    plt.errorbar(x_axis,
+                 all_ori_err_mean.numpy(),
+                 all_ori_err_std.numpy(),
+                 marker='o',
+                 mfc='blue',
+                 ms=4.,
+                 capsize=3.,
+                 capthick=1.,
+                 ls='none')
     plt.xlabel("Test object number")
     plt.ylabel("Orientation error (rad)")
     plt.title("Test error in screw axis orientation")
@@ -325,7 +427,10 @@ if __name__ == "__main__":
     fig = plt.figure(11)
     data = all_ori_err_mean.numpy()
     binwidth = 0.05
-    plt.hist(data, bins=np.arange(0., data.max() + binwidth, binwidth), weights=np.ones(len(data)) / len(data),
+    plt.hist(data,
+             bins=np.arange(0.,
+                            data.max() + binwidth, binwidth),
+             weights=np.ones(len(data)) / len(data),
              density=True)
     percent_scale = 1 / binwidth
     plt.gca().yaxis.set_major_formatter(formatter)
@@ -337,8 +442,15 @@ if __name__ == "__main__":
     plt.close(fig)
 
     fig = plt.figure(2)
-    plt.errorbar(x_axis, all_dist_err_mean.numpy() * 100., all_dist_err_std.numpy() * 100.,
-                 marker='o', ms=4, mfc='blue', capsize=3., capthick=1., ls='none')
+    plt.errorbar(x_axis,
+                 all_dist_err_mean.numpy() * 100.,
+                 all_dist_err_std.numpy() * 100.,
+                 marker='o',
+                 ms=4,
+                 mfc='blue',
+                 capsize=3.,
+                 capthick=1.,
+                 ls='none')
     plt.xlabel("Test object number")
     plt.ylabel("Spatial distance error (cm)")
     plt.title("Test error in spatial distance")
@@ -349,7 +461,10 @@ if __name__ == "__main__":
     fig = plt.figure(21)
     data = copy.copy(all_dist_err_mean.numpy()) * 100.
     binwidth = 1.
-    plt.hist(data, bins=np.arange(0., data.max() + binwidth, binwidth), density=True)
+    plt.hist(data,
+             bins=np.arange(0.,
+                            data.max() + binwidth, binwidth),
+             density=True)
     percent_scale = 1 / binwidth
     plt.gca().yaxis.set_major_formatter(formatter)
     plt.xlabel("Spatial distance error (cm)")

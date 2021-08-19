@@ -20,6 +20,9 @@ conda activate screwNet
 ```commandline
 python evaluate_model.py --model-dir <pretrained-model-dir> --model-name <model-name> --test-dir <test-dir-name> --model-type <screw, l2, noLSTM, 2imgs> --output-dir <output-dir>
 ```
+```commandline
+python evaluate_model.py --model-dir ./data/ckpt --model-name nnv1_partnet_combined_screw --test-dir ./data/test_dataset/partnet-mobility/oven-test --model-type screw --output-dir ./data/out
+```
 
 #### [Optional] Visualization on jupyter notebook
 * run ```jupyter notebook```

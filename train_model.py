@@ -15,33 +15,83 @@ fake_proj_matrix = torch.tensor(fake_proj_matrix).float()[:2, :]
 # print(fake_proj_matrix)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train object learner on articulated object dataset.")
+    parser = argparse.ArgumentParser(
+        description="Train object learner on articulated object dataset.")
     parser.add_argument('--name', type=str, help='jobname', default='test')
-    parser.add_argument('--train-dir', type=str, default='../data/test/microwave/')
-    parser.add_argument('--test-dir', type=str, default='../data/test/microwave/')
-    parser.add_argument('--ntrain', type=int, default=1000,
-                        help='number of total training samples (n_object_instants)')
-    parser.add_argument('--ntest', type=int, default=10, help='number of test samples (n_object_instants)')
-    parser.add_argument('--epochs', type=int, default=100, help='number of iterations through data')
+    parser.add_argument('--train-dir',
+                        type=str,
+                        default='../data/test/microwave/')
+    parser.add_argument('--test-dir',
+                        type=str,
+                        default='../data/test/microwave/')
+    parser.add_argument(
+        '--ntrain',
+        type=int,
+        default=1000,
+        help='number of total training samples (n_object_instants)')
+    parser.add_argument('--ntest',
+                        type=int,
+                        default=10,
+                        help='number of test samples (n_object_instants)')
+    parser.add_argument('--epochs',
+                        type=int,
+                        default=100,
+                        help='number of iterations through data')
     parser.add_argument('--batch', type=int, default=40, help='batch size')
     parser.add_argument('--nwork', type=int, default=12, help='num_workers')
-    parser.add_argument('--val-freq', type=int, default=5, help='frequency at which to validate')
-    parser.add_argument('--cuda', action='store_true', default=False, help='use cuda')
+    parser.add_argument('--val-freq',
+                        type=int,
+                        default=5,
+                        help='frequency at which to validate')
+    parser.add_argument('--cuda',
+                        action='store_true',
+                        default=False,
+                        help='use cuda')
     parser.add_argument('--learning-rate', type=float, default=1e-3)
     parser.add_argument('--device', type=int, default=0, help='cuda device')
-    parser.add_argument('--model-type', type=str, default='lstm', help='screw, noLSTM, 2imgs, l2')
-    parser.add_argument('--load-wts', action='store_true', default=False, help='Should load model wts from prior run?')
-    parser.add_argument('--wts-dir', type=str, default='models/', help='Dir of saved model wts')
-    parser.add_argument('--prior-wts', type=str, default='test', help='Name of saved model wts')
-    parser.add_argument('--fix-seed', action='store_true', default=False, help='Should fix seed or not')
-    parser.add_argument('--lr-scheduler', default=['30', '.1'], nargs='+',
-                        help='number of iters (arg 0) before applying gamma (arg 1) to lr')
-    parser.add_argument('--arm-occlusion', action='store_true', default=False, help='Should fix seed or not')
-    parser.add_argument('--lstm-hidden-dim', type=int, default=1000, help='number of nodes in LSTM hidden layer')
-    parser.add_argument('--lstm-hidden-layers', type=int, default=1, help='number of layers for LSTM')
+    parser.add_argument('--model-type',
+                        type=str,
+                        default='lstm',
+                        help='screw, noLSTM, 2imgs, l2')
+    parser.add_argument('--load-wts',
+                        action='store_true',
+                        default=False,
+                        help='Should load model wts from prior run?')
+    parser.add_argument('--wts-dir',
+                        type=str,
+                        default='models/',
+                        help='Dir of saved model wts')
+    parser.add_argument('--prior-wts',
+                        type=str,
+                        default='test',
+                        help='Name of saved model wts')
+    parser.add_argument('--fix-seed',
+                        action='store_true',
+                        default=False,
+                        help='Should fix seed or not')
+    parser.add_argument(
+        '--lr-scheduler',
+        default=['30', '.1'],
+        nargs='+',
+        help='number of iters (arg 0) before applying gamma (arg 1) to lr')
+    parser.add_argument('--arm-occlusion',
+                        action='store_true',
+                        default=False,
+                        help='Should fix seed or not')
+    parser.add_argument('--lstm-hidden-dim',
+                        type=int,
+                        default=1000,
+                        help='number of nodes in LSTM hidden layer')
+    parser.add_argument('--lstm-hidden-layers',
+                        type=int,
+                        default=1,
+                        help='number of layers for LSTM')
 
     args = parser.parse_args()
-    lr_schedule, lr_gamma = [int(args.lr_scheduler[0]), float(args.lr_scheduler[1])]
+    lr_schedule, lr_gamma = [
+        int(args.lr_scheduler[0]),
+        float(args.lr_scheduler[1])
+    ]
 
     print(args)
     print('cuda?', torch.cuda.is_available())
@@ -76,7 +126,9 @@ if __name__ == "__main__":
                                       transform=noiser)
 
         loss_fn = articulation_lstm_loss_spatial_distance
-        network = ScrewNet_NoLSTM(seq_len=16, fc_replace_lstm_dim=1000, n_output=8)
+        network = ScrewNet_NoLSTM(seq_len=16,
+                                  fc_replace_lstm_dim=1000,
+                                  n_output=8)
 
     elif args.model_type == 'l2':
         trainset = ArticulationDataset(args.ntrain,
@@ -88,7 +140,8 @@ if __name__ == "__main__":
                                       transform=noiser)
 
         loss_fn = articulation_lstm_loss_L2
-        network = ScrewNet(lstm_hidden_dim=args.lstm_hidden_dim, n_lstm_hidden_layers=args.lstm_hidden_layers,
+        network = ScrewNet(lstm_hidden_dim=args.lstm_hidden_dim,
+                           n_lstm_hidden_layers=args.lstm_hidden_layers,
                            n_output=8)
 
     else:  # Default: 'screw'
@@ -102,32 +155,45 @@ if __name__ == "__main__":
                                           transform=noiser)
 
             loss_fn = articulation_lstm_loss_spatial_distance
-            network = ScrewNet(lstm_hidden_dim=args.lstm_hidden_dim, n_lstm_hidden_layers=args.lstm_hidden_layers,
+            network = ScrewNet(lstm_hidden_dim=args.lstm_hidden_dim,
+                               n_lstm_hidden_layers=args.lstm_hidden_layers,
                                n_output=8)
         else:
             trainset = ArticulationDataset(args.ntrain,
                                            args.train_dir,
-                                           transform=transforms.Compose([ArmOcclusion(fake_proj_matrix), noiser]))
+                                           transform=transforms.Compose([
+                                               ArmOcclusion(fake_proj_matrix),
+                                               noiser
+                                           ]))
 
             testset = ArticulationDataset(args.ntest,
                                           args.test_dir,
-                                          transform=transforms.Compose([ArmOcclusion(fake_proj_matrix), noiser]))
+                                          transform=transforms.Compose([
+                                              ArmOcclusion(fake_proj_matrix),
+                                              noiser
+                                          ]))
 
             loss_fn = articulation_lstm_loss_spatial_distance
-            network = ScrewNet(lstm_hidden_dim=args.lstm_hidden_dim, n_lstm_hidden_layers=args.lstm_hidden_layers,
+            network = ScrewNet(lstm_hidden_dim=args.lstm_hidden_dim,
+                               n_lstm_hidden_layers=args.lstm_hidden_layers,
                                n_output=8)
 
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch,
-                                             shuffle=True, num_workers=args.nwork,
+    testloader = torch.utils.data.DataLoader(testset,
+                                             batch_size=args.batch,
+                                             shuffle=True,
+                                             num_workers=args.nwork,
                                              pin_memory=True)
 
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch,
-                                              shuffle=True, num_workers=args.nwork,
+    trainloader = torch.utils.data.DataLoader(trainset,
+                                              batch_size=args.batch,
+                                              shuffle=True,
+                                              num_workers=args.nwork,
                                               pin_memory=True)
 
     # Load Saved wts
     if args.load_wts:
-        network.load_state_dict(torch.load(args.wts_dir + args.prior_wts + '.net'))
+        network.load_state_dict(
+            torch.load(args.wts_dir + args.prior_wts + '.net'))
 
     # setup trainer
     if torch.cuda.is_available():
@@ -139,7 +205,9 @@ if __name__ == "__main__":
                                  lr=args.learning_rate,
                                  weight_decay=1e-2)
 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_schedule, gamma=lr_gamma)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                                step_size=lr_schedule,
+                                                gamma=lr_gamma)
 
     # ## Debug
     # torch.autograd.set_detect_anomaly(True)

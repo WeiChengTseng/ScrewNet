@@ -5,7 +5,11 @@ from torchvision import models
 
 
 class ScrewNet(nn.Module):
-    def __init__(self, lstm_hidden_dim=1000, n_lstm_hidden_layers=1, drop_p=0.5, n_output=8):
+    def __init__(self,
+                 lstm_hidden_dim=1000,
+                 n_lstm_hidden_layers=1,
+                 drop_p=0.5,
+                 n_output=8):
         super(ScrewNet, self).__init__()
 
         self.fc_res_dim_1 = 512
@@ -59,7 +63,8 @@ class ScrewNet(nn.Module):
         None represents zero initial hidden state. RNN_out has shape=(batch, time_step, output_size) """
 
         # FC layers
-        x_rnn = RNN_out.contiguous().view(-1, self.lstm_hidden_dim)  # Using Last layer of RNN
+        x_rnn = RNN_out.contiguous().view(
+            -1, self.lstm_hidden_dim)  # Using Last layer of RNN
         x_rnn = self.bn_lstm_1(self.fc_lstm_1(x_rnn))
         x_rnn = F.relu(x_rnn)
         x_rnn = self.bn_lstm_2(self.fc_lstm_2(x_rnn))
@@ -132,9 +137,11 @@ class ScrewNet_NoLSTM(nn.Module):
         self.bn_res_1 = nn.BatchNorm1d(self.fc_res_dim_1, momentum=0.01)
         self.fc_res_2 = nn.Linear(self.fc_res_dim_1, self.fc_replace_lstm_dim)
 
-        self.fc_replace_lstm = nn.Linear(self.fc_replace_lstm_seq_dim, self.fc_replace_lstm_seq_dim)
+        self.fc_replace_lstm = nn.Linear(self.fc_replace_lstm_seq_dim,
+                                         self.fc_replace_lstm_seq_dim)
 
-        self.fc_lstm_1 = nn.Linear(self.fc_replace_lstm_dim, self.fc_lstm_dim_1)
+        self.fc_lstm_1 = nn.Linear(self.fc_replace_lstm_dim,
+                                   self.fc_lstm_dim_1)
         self.bn_lstm_1 = nn.BatchNorm1d(self.fc_lstm_dim_1, momentum=0.01)
         self.fc_lstm_2 = nn.Linear(self.fc_lstm_dim_1, self.fc_lstm_dim_2)
         self.bn_lstm_2 = nn.BatchNorm1d(self.fc_lstm_dim_2, momentum=0.01)
@@ -156,7 +163,8 @@ class ScrewNet_NoLSTM(nn.Module):
         cnn_embed_seq = torch.stack(cnn_embed_seq, dim=0).transpose_(0, 1)
 
         # FC replacing LSTM layer
-        cnn_embed_seq = cnn_embed_seq.contiguous().view(cnn_embed_seq.size(0), -1)
+        cnn_embed_seq = cnn_embed_seq.contiguous().view(
+            cnn_embed_seq.size(0), -1)
         x_rnn = F.relu(self.fc_replace_lstm(cnn_embed_seq))
         x_rnn = x_rnn.view(-1, self.fc_replace_lstm_dim)
 

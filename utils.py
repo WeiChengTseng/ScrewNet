@@ -37,18 +37,21 @@ def transform_to_screw(translation, quat_in_wxyz, tol=1e-6):
 
 
 def dual_quaternion_to_screw(dq, tol=1e-6):
-    l_hat, theta = tf3d.quaternions.quat2axangle(np.array([dq.real.w, dq.real.x, dq.real.y, dq.real.z]))
+    l_hat, theta = tf3d.quaternions.quat2axangle(
+        np.array([dq.real.w, dq.real.x, dq.real.y, dq.real.z]))
 
     if theta < tol or abs(theta - np.pi) < tol:
         t_vec = dq.translation()
         l_hat = t_vec / (np.linalg.norm(t_vec) + 1e-10)
         theta = tol  # This makes sure that tan(theta) is defined
     else:
-        t_vec = (2 * tf3d.quaternions.qmult(dq.dual.data, tf3d.quaternions.qconjugate(dq.real.data)))[
-                1:]  # taking xyz from wxyz
+        t_vec = (2 * tf3d.quaternions.qmult(
+            dq.dual.data, tf3d.quaternions.qconjugate(
+                dq.real.data)))[1:]  # taking xyz from wxyz
 
     d = t_vec.dot(l_hat)
-    m = (1 / 2) * (np.cross(t_vec, l_hat) + ((t_vec - d * l_hat) / np.tan(theta / 2)))
+    m = (1 / 2) * (np.cross(t_vec, l_hat) +
+                   ((t_vec - d * l_hat) / np.tan(theta / 2)))
     return l_hat, m, theta, d
 
 
@@ -56,8 +59,12 @@ def dual_quaternion_to_screw_batch_mode(dq_batch):
     screws = torch.empty(0)
     for b in dq_batch:
         for dq in b:
-            l_hat, m, theta, d = dual_quaternion_to_screw(tensor_to_dual_quat(dq))
-            screws = torch.cat((screws, torch.from_numpy(np.concatenate((l_hat, m, [theta], [d]))).float()))
+            l_hat, m, theta, d = dual_quaternion_to_screw(
+                tensor_to_dual_quat(dq))
+            screws = torch.cat(
+                (screws,
+                 torch.from_numpy(np.concatenate(
+                     (l_hat, m, [theta], [d]))).float()))
     return screws.view_as(dq_batch)
 
 
@@ -96,7 +103,8 @@ def orientation_difference(q1, q2):
 def pose_difference(f1, f2, pos_wt=1.0, ori_wt=1.0, dual_quats=False):
     # Input: 7x1 , first 3 corresponds to the origin and last 4 orientation quaternion
     position_diff = np.linalg.norm(f1[:3] - f2[:3])
-    return pos_wt * position_diff + ori_wt * orientation_difference(f1[3:], f2[3:])
+    return pos_wt * position_diff + ori_wt * orientation_difference(
+        f1[3:], f2[3:])
 
 
 def detect_model_class(mv_frames):
@@ -141,40 +149,58 @@ def distance_bw_plucker_lines(target, prediction, eps=1e-10):
     # Based on formula from Plücker Coordinates for Lines in the Space by Prof. Yan-bin Jia
     # Verified by https://keisan.casio.com/exec/system/1223531414
     """
-    norm_cross_prod = torch.norm(torch.cross(target[:, :, :3], prediction[:, :, :3], dim=-1), dim=-1)
+    norm_cross_prod = torch.norm(torch.cross(target[:, :, :3],
+                                             prediction[:, :, :3],
+                                             dim=-1),
+                                 dim=-1)
     dist = torch.zeros_like(norm_cross_prod)
 
     # Checking for Parallel Lines
     if torch.any(norm_cross_prod <= eps):
         zero_idxs = (norm_cross_prod <= eps).nonzero(as_tuple=True)
-        scales = torch.norm(prediction[zero_idxs][:, :3], dim=-1) / torch.norm(target[zero_idxs][:, :3], dim=-1) + eps
-        dist[zero_idxs] = torch.norm(torch.cross(target[zero_idxs][:, :3], (
-                target[zero_idxs][:, 3:6] - prediction[zero_idxs][:, 3:6] / scales.unsqueeze(-1))), dim=-1) / (
-                                  torch.mul(target[zero_idxs][:, :3], target[zero_idxs][:, :3]).sum(dim=-1) + eps)
+        scales = torch.norm(prediction[zero_idxs][:, :3], dim=-1) / torch.norm(
+            target[zero_idxs][:, :3], dim=-1) + eps
+        dist[zero_idxs] = torch.norm(
+            torch.cross(
+                target[zero_idxs][:, :3],
+                (target[zero_idxs][:, 3:6] -
+                 prediction[zero_idxs][:, 3:6] / scales.unsqueeze(-1))),
+            dim=-1) / (torch.mul(target[zero_idxs][:, :3],
+                                 target[zero_idxs][:, :3]).sum(dim=-1) + eps)
 
     # Skew Lines: Non zero cross product
     nonzero_idxs = (norm_cross_prod > eps).nonzero(as_tuple=True)
     dist[nonzero_idxs] = torch.abs(
-        torch.mul(target[nonzero_idxs][:, :3], prediction[nonzero_idxs][:, 3:6]).sum(dim=-1) + torch.mul(
-            target[nonzero_idxs][:, 3:6], prediction[nonzero_idxs][:, :3]).sum(dim=-1)) / (
-                                 norm_cross_prod[nonzero_idxs] + eps)
+        torch.mul(target[nonzero_idxs][:, :3], prediction[nonzero_idxs]
+                  [:, 3:6]).sum(dim=-1) +
+        torch.mul(target[nonzero_idxs][:, 3:6], prediction[nonzero_idxs]
+                  [:, :3]).sum(dim=-1)) / (norm_cross_prod[nonzero_idxs] + eps)
     return dist
 
 
 def orientation_difference_bw_plucker_lines(target, prediction, eps=1e-6):
     """ Input shapes Tensors: Batch X #Images X 8
     range of arccos ins [0, pi)"""
-    return torch.acos(torch.clamp(torch.mul(target[:, :, :3], prediction[:, :, :3]).sum(dim=-1) / (
-            torch.norm(target[:, :, :3], dim=-1) * torch.norm(prediction[:, :, :3], dim=-1) + eps),
-                                  min=-1, max=1))
+    return torch.acos(
+        torch.clamp(
+            torch.mul(target[:, :, :3], prediction[:, :, :3]).sum(dim=-1) /
+            (torch.norm(target[:, :, :3], dim=-1) *
+             torch.norm(prediction[:, :, :3], dim=-1) + eps),
+            min=-1,
+            max=1))
 
 
 def theta_config_error(target, prediction):
-    rot_tar = angle_axis_to_rotation_matrix(target[:, :, :3], target[:, :, 6]).view(-1, 3, 3)
-    rot_pred = angle_axis_to_rotation_matrix(prediction[:, :, :3], prediction[:, :, 6]).view(-1, 3, 3)
+    rot_tar = angle_axis_to_rotation_matrix(target[:, :, :3],
+                                            target[:, :, 6]).view(-1, 3, 3)
+    rot_pred = angle_axis_to_rotation_matrix(prediction[:, :, :3],
+                                             prediction[:, :,
+                                                        6]).view(-1, 3, 3)
     I_ = torch.eye(3).reshape((1, 3, 3))
     I_ = I_.repeat(rot_tar.size(0), 1, 1).to(target.device)
-    return torch.norm(I_ - torch.bmm(rot_pred, rot_tar.transpose(1, 2)), dim=(1, 2), p=2).view(target.shape[:2])
+    return torch.norm(I_ - torch.bmm(rot_pred, rot_tar.transpose(1, 2)),
+                      dim=(1, 2),
+                      p=2).view(target.shape[:2])
 
 
 def angle_axis_to_rotation_matrix(angle_axis, theta):
@@ -198,8 +224,8 @@ def angle_axis_to_rotation_matrix(angle_axis, theta):
     r02 = wy * sin_theta + wx * wz * (k_one - cos_theta)
     r12 = -wx * sin_theta + wy * wz * (k_one - cos_theta)
     r22 = cos_theta + wz * wz * (k_one - cos_theta)
-    rotation_matrix = torch.cat(
-        [r00, r01, r02, r10, r11, r12, r20, r21, r22], dim=1)
+    rotation_matrix = torch.cat([r00, r01, r02, r10, r11, r12, r20, r21, r22],
+                                dim=1)
     return rotation_matrix.view(list(angle_axis_shape[:-1]) + [3, 3])
 
 
@@ -215,11 +241,14 @@ def quaternion_inner_product(q, r):
     assert q.shape[-1] == 4
     assert r.shape[-1] == 4
     original_shape = q.shape
-    return torch.bmm(q.view(-1, 1, 4), r.view(-1, 4, 1)).view(original_shape[:-1])
+    return torch.bmm(q.view(-1, 1, 4), r.view(-1, 4,
+                                              1)).view(original_shape[:-1])
 
 
 def difference_between_quaternions_tensors(q1, q2, eps=1e-6):
-    return torch.acos(torch.clamp(2 * quaternion_inner_product(q1, q2) ** 2 - 1, -1 + eps, 1 - eps))
+    return torch.acos(
+        torch.clamp(2 * quaternion_inner_product(q1, q2)**2 - 1, -1 + eps,
+                    1 - eps))
 
 
 def transform_plucker_line(line, trans, quat):
@@ -233,9 +262,7 @@ def transform_plucker_line(line, trans, quat):
 
 
 def to_skew_symmetric_matrix(v):
-    return np.array([[0., -v[2], v[1]],
-                     [v[2], 0., -v[0]],
-                     [-v[1], v[0], 0.]])
+    return np.array([[0., -v[2], v[1]], [v[2], 0., -v[0]], [-v[1], v[0], 0.]])
 
 
 def transform_plucker_line_batch(line, trans, quat):
@@ -264,9 +291,10 @@ def to_skew_symmetric_matrix_batch(vec):
 
 
 def change_frames(frame_B_wrt_A, pose_wrt_A):
-    A_T_pose = tf3d.affines.compose(T=pose_wrt_A[:3],
-                                    R=tf3d.quaternions.quat2mat(pose_wrt_A[3:]),  # quat in  wxyz
-                                    Z=np.ones(3))
+    A_T_pose = tf3d.affines.compose(
+        T=pose_wrt_A[:3],
+        R=tf3d.quaternions.quat2mat(pose_wrt_A[3:]),  # quat in  wxyz
+        Z=np.ones(3))
     A_rot_mat_B = tf3d.quaternions.quat2mat(frame_B_wrt_A[3:])
 
     # Following as described in Craig

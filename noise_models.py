@@ -13,8 +13,9 @@ import torch
 
 class ArmOcclusion(object):
     ''' Add one distractor object to the background of the first '''
-
-    def __init__(self, projection_matrix):  # TODO: make the size, displacement and variance customisable
+    def __init__(
+        self, projection_matrix
+    ):  # TODO: make the size, displacement and variance customisable
         self.displacement = torch.tensor([-5, 5])
         self.size = torch.tensor([int(60 / 10), int(25 / 1.3)])
         # self.size_variance = torch.tensor([10,5])
@@ -22,7 +23,8 @@ class ArmOcclusion(object):
         self.displacement_variance = torch.tensor([5, 1])
         self.projection_matrix = projection_matrix
 
-    def __call__(self, x):  # takes in images, and the object pose (only using xyz)
+    def __call__(self,
+                 x):  # takes in images, and the object pose (only using xyz)
         x, p = x
         x = x.float()
         p = p.float()
@@ -34,13 +36,23 @@ class ArmOcclusion(object):
         center[1] = center[1] / pt[2]
         width = self.size_variance[0] * neg_pos_rand() + self.size[0]
         height = self.size_variance[1] * neg_pos_rand() + self.size[1]
-        center[0] = center[0] - (self.displacement[0] + self.displacement_variance[0] * neg_pos_rand())
-        center[1] = center[1] - (self.displacement[1] + self.displacement_variance[1] * neg_pos_rand())
+        center[0] = center[0] - (
+            self.displacement[0] +
+            self.displacement_variance[0] * neg_pos_rand())
+        center[1] = center[1] - (
+            self.displacement[1] +
+            self.displacement_variance[1] * neg_pos_rand())
         center[1] = x.shape[1] - center[1]
         # x[:, int(max(center[0]-(height/2), 0)):int(min(center[0]+(height/2), x.shape[1])), # mask the x values
         # int(max(center[1]-(width/2), 0)):int(min(center[1]+(width/2), x.shape[2]))]=1  # mask the y values
-        x[:, int(max(center[1] - (height / 2), 0)):int(min(center[1] + (height / 2), x.shape[1])),  # mask y values
-        int(max(center[0] - (width / 2), 0)):int(min(center[0] + (width / 2), x.shape[2]))] = 0.  # mask the x values
+        x[:,
+          int(max(center[1] -
+                  (height /
+                   2), 0)):int(min(center[1] +
+                                   (height / 2), x.shape[1])),  # mask y values
+          int(max(center[0] -
+                  (width / 2), 0)):int(min(center[0] + (
+                      width / 2), x.shape[2]))] = 0.  # mask the x values
 
         # print( self.projection_matrix.shape, p.shape, p, pt, center, width, height, x.shape,
         # int(max(center[1]-(height/2), 0)), int(min(center[1]+(height/2), x.shape[1])),
@@ -50,7 +62,6 @@ class ArmOcclusion(object):
 
 class Distractor(object):
     ''' Add one distractor object to the background of the first '''
-
     def __init__(self, trans_weight=0.0, rotate=True):
         self.trans_weight = trans_weight
         self.rotate = rotate
@@ -76,7 +87,6 @@ class Distractor(object):
 
 class Noise(object):
     '''Add noise to depth images!'''
-
     def __init__(self, loc, scale):
         self.dist = torch.distributions.normal.Normal(loc, scale)
 
@@ -86,7 +96,6 @@ class Noise(object):
 
 class DropPixelsMasked(object):
     """Set pixels (on the object) to zero with probability p"""
-
     def __init__(self, p=0.1):
         self.p = p
 
@@ -96,7 +105,10 @@ class DropPixelsMasked(object):
         imgy = x.shape[2]
         foreground = (x < 0.99)
         background = (x > 0.99)
-        noise = np.random.choice([1.0, 0.9], size=108 * 192, p=[1 - self.p, self.p]).astype(int).reshape(imgx, imgy)
+        noise = np.random.choice([1.0, 0.9],
+                                 size=108 * 192,
+                                 p=[1 - self.p,
+                                    self.p]).astype(int).reshape(imgx, imgy)
         noise_torch = torch.tensor(noise)
         masked_noise = foreground.float() * noise_torch.float()
         noised_train = x * (masked_noise + background.float())
@@ -105,7 +117,6 @@ class DropPixelsMasked(object):
 
 class DropPixels(object):
     '''Drop pixels all over the image.'''
-
     def __init__(self, p=0.1):
         self.p = p
 
@@ -113,7 +124,10 @@ class DropPixels(object):
         x = x[0]
         imgx = x.shape[1]
         imgy = x.shape[2]
-        noise = np.random.choice([1.0, 0.9], size=108 * 192, p=[1 - self.p, self.p]).astype(int).reshape(imgx, imgy)
+        noise = np.random.choice([1.0, 0.9],
+                                 size=108 * 192,
+                                 p=[1 - self.p,
+                                    self.p]).astype(int).reshape(imgx, imgy)
         noise_torch = torch.tensor(noise).float()
         return x * noise_torch
 

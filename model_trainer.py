@@ -77,7 +77,8 @@ class ModelTrainer(object):
 
                 if tloss < best_tloss:
                     print('saving model.')
-                    net_fname = os.path.join(self.wts_dir, str(self.name) + '.net')
+                    net_fname = os.path.join(self.wts_dir,
+                                             str(self.name) + '.net')
                     torch.save(self.model.state_dict(), net_fname)
                     best_tloss = tloss
 
@@ -88,14 +89,17 @@ class ModelTrainer(object):
             nan_count = 0
             for tag, parm in self.model.named_parameters():
                 if torch.isnan(parm.grad).any():
-                    print("Encountered NaNs in gradients at {} layer".format(tag))
+                    print("Encountered NaNs in gradients at {} layer".format(
+                        tag))
                     nan_count += 1
                 else:
-                    self.writer.add_histogram(tag, parm.grad.data.cpu().numpy(), epoch)
+                    self.writer.add_histogram(tag,
+                                              parm.grad.data.cpu().numpy(),
+                                              epoch)
                     param_norm = parm.grad.data.norm(2)
-                    total_norm += param_norm.item() ** 2
+                    total_norm += param_norm.item()**2
 
-            total_norm = total_norm ** (1. / 2)
+            total_norm = total_norm**(1. / 2)
             self.writer.add_scalar('Gradient/2-norm', total_norm, epoch)
             if nan_count > 0:
                 raise ValueError("Encountered NaNs in gradients")
@@ -113,7 +117,8 @@ class ModelTrainer(object):
     def train_epoch(self, epoch):
         start = time.time()
         running_loss = 0
-        batches_per_dataset = len(self.trainloader.dataset) / self.trainloader.batch_size
+        batches_per_dataset = len(
+            self.trainloader.dataset) / self.trainloader.batch_size
         self.model.train()  # Put model in training mode
 
         for i, X in enumerate(self.trainloader):
@@ -136,15 +141,16 @@ class ModelTrainer(object):
                 running_loss += loss.item()
 
         stop = time.time()
-        print('Epoch %s -  Train  Loss: %.5f Time: %.5f' % (str(epoch).zfill(3),
-                                                            running_loss / batches_per_dataset,
-                                                            stop - start))
+        print('Epoch %s -  Train  Loss: %.5f Time: %.5f' %
+              (str(epoch).zfill(3), running_loss / batches_per_dataset,
+               stop - start))
         return running_loss / batches_per_dataset
 
     def test_epoch(self, epoch):
         start = time.time()
         running_loss = 0
-        batches_per_dataset = len(self.testloader.dataset) / self.testloader.batch_size
+        batches_per_dataset = len(
+            self.testloader.dataset) / self.testloader.batch_size
         self.model.eval()  # Put batch norm layers in eval mode
 
         with torch.no_grad():
@@ -156,9 +162,9 @@ class ModelTrainer(object):
                 running_loss += loss.item()
 
         stop = time.time()
-        print('Epoch %s -  Test  Loss: %.5f Euc. Time: %.5f' % (str(epoch).zfill(3),
-                                                                running_loss / batches_per_dataset,
-                                                                stop - start))
+        print('Epoch %s -  Test  Loss: %.5f Euc. Time: %.5f' %
+              (str(epoch).zfill(3), running_loss / batches_per_dataset,
+               stop - start))
         return running_loss / batches_per_dataset
 
     def plot_losses(self):
@@ -171,10 +177,15 @@ class ModelTrainer(object):
         plt.ylabel('Loss')
         plt.savefig(os.path.join(self.plots_dir, 'curve.png'))
         plt.close()
-        np.save(os.path.join(self.plots_dir, 'losses.npy'), np.array(self.losses))
-        np.save(os.path.join(self.plots_dir, 'tlosses.npy'), np.array(self.tlosses))
+        np.save(os.path.join(self.plots_dir, 'losses.npy'),
+                np.array(self.losses))
+        np.save(os.path.join(self.plots_dir, 'tlosses.npy'),
+                np.array(self.tlosses))
 
-    def test_best_model(self, best_model, fname_suffix='', dual_quat_mode=False):
+    def test_best_model(self,
+                        best_model,
+                        fname_suffix='',
+                        dual_quat_mode=False):
         best_model.eval()  # Put model in evaluation mode
 
         all_l_hat_err = torch.empty(0)
@@ -199,55 +210,89 @@ class ModelTrainer(object):
                     labels = dual_quaternion_to_screw_batch_mode(labels)
 
                 err = labels - y_pred
-                all_l_hat_err = torch.cat(
-                    (all_l_hat_err, torch.mean(torch.norm(err[:, :, :3], dim=-1), dim=-1).cpu()))
-                all_m_err = torch.cat((all_m_err, torch.mean(torch.norm(err[:, :, 3:6], dim=-1), dim=-1).cpu()))
-                all_q_err = torch.cat((all_q_err, torch.mean(err[:, :, 6], dim=-1).cpu()))
-                all_d_err = torch.cat((all_d_err, torch.mean(err[:, :, 7], dim=-1).cpu()))
+                all_l_hat_err = torch.cat((all_l_hat_err,
+                                           torch.mean(torch.norm(err[:, :, :3],
+                                                                 dim=-1),
+                                                      dim=-1).cpu()))
+                all_m_err = torch.cat((all_m_err,
+                                       torch.mean(torch.norm(err[:, :, 3:6],
+                                                             dim=-1),
+                                                  dim=-1).cpu()))
+                all_q_err = torch.cat(
+                    (all_q_err, torch.mean(err[:, :, 6], dim=-1).cpu()))
+                all_d_err = torch.cat(
+                    (all_d_err, torch.mean(err[:, :, 7], dim=-1).cpu()))
 
-                all_l_hat_std = torch.cat(
-                    (all_l_hat_std, torch.std(torch.norm(err[:, :, :3], dim=-1), dim=-1).cpu()))
-                all_m_std = torch.cat((all_m_std, torch.std(torch.norm(err[:, :, 3:6], dim=-1), dim=-1).cpu()))
-                all_q_std = torch.cat((all_q_std, torch.std(err[:, :, 6], dim=-1).cpu()))
-                all_d_std = torch.cat((all_d_std, torch.std(err[:, :, 7], dim=-1).cpu()))
+                all_l_hat_std = torch.cat((all_l_hat_std,
+                                           torch.std(torch.norm(err[:, :, :3],
+                                                                dim=-1),
+                                                     dim=-1).cpu()))
+                all_m_std = torch.cat((all_m_std,
+                                       torch.std(torch.norm(err[:, :, 3:6],
+                                                            dim=-1),
+                                                 dim=-1).cpu()))
+                all_q_std = torch.cat(
+                    (all_q_std, torch.std(err[:, :, 6], dim=-1).cpu()))
+                all_d_std = torch.cat(
+                    (all_d_std, torch.std(err[:, :, 7], dim=-1).cpu()))
 
         # Plot variation of screw axis
         x_axis = np.arange(all_l_hat_err.size(0))
 
         fig = plt.figure(1)
-        plt.errorbar(x_axis, all_l_hat_err.numpy(), all_l_hat_std.numpy(), capsize=3., capthick=1.)
+        plt.errorbar(x_axis,
+                     all_l_hat_err.numpy(),
+                     all_l_hat_std.numpy(),
+                     capsize=3.,
+                     capthick=1.)
         plt.xlabel("Test object number")
         plt.ylabel("Error")
         plt.title("Test error in l_hat")
         plt.tight_layout()
-        plt.savefig(os.path.join(self.plots_dir, 'l_hat_err' + fname_suffix + '.png'))
+        plt.savefig(
+            os.path.join(self.plots_dir, 'l_hat_err' + fname_suffix + '.png'))
         plt.close(fig)
 
         fig = plt.figure(2)
-        plt.errorbar(x_axis, all_m_err.numpy(), all_m_std.numpy(), capsize=3., capthick=1.)
+        plt.errorbar(x_axis,
+                     all_m_err.numpy(),
+                     all_m_std.numpy(),
+                     capsize=3.,
+                     capthick=1.)
         plt.xlabel("Test object number")
         plt.ylabel("Error")
         plt.title("Test error in m")
         plt.tight_layout()
-        plt.savefig(os.path.join(self.plots_dir, 'm_err' + fname_suffix + '.png'))
+        plt.savefig(
+            os.path.join(self.plots_dir, 'm_err' + fname_suffix + '.png'))
         plt.close(fig)
 
         fig = plt.figure(3)
-        plt.errorbar(x_axis, all_q_err.numpy(), all_q_std.numpy(), capsize=3., capthick=1.)
+        plt.errorbar(x_axis,
+                     all_q_err.numpy(),
+                     all_q_std.numpy(),
+                     capsize=3.,
+                     capthick=1.)
         plt.xlabel("Test object number")
         plt.ylabel("Error")
         plt.title("Test error in theta")
         plt.tight_layout()
-        plt.savefig(os.path.join(self.plots_dir, 'theta_err' + fname_suffix + '.png'))
+        plt.savefig(
+            os.path.join(self.plots_dir, 'theta_err' + fname_suffix + '.png'))
         plt.close(fig)
 
         fig = plt.figure(4)
-        plt.errorbar(x_axis, all_d_err.numpy(), all_d_std.numpy(), capsize=3., capthick=1.)
+        plt.errorbar(x_axis,
+                     all_d_err.numpy(),
+                     all_d_std.numpy(),
+                     capsize=3.,
+                     capthick=1.)
         plt.xlabel("Test object number")
         plt.ylabel("Error")
         plt.title("Test error in d")
         plt.tight_layout()
-        plt.savefig(os.path.join(self.plots_dir, 'd_err' + fname_suffix + '.png'))
+        plt.savefig(
+            os.path.join(self.plots_dir, 'd_err' + fname_suffix + '.png'))
         plt.close(fig)
 
     def plot_grad_flow(self, named_parameters):
@@ -266,17 +311,28 @@ class ModelTrainer(object):
                 layers.append(n)
                 ave_grads.append(p.grad.abs().mean())
                 max_grads.append(p.grad.abs().max())
-        plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.1, lw=1, color="c")
-        plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.1, lw=1, color="b")
+        plt.bar(np.arange(len(max_grads)),
+                max_grads,
+                alpha=0.1,
+                lw=1,
+                color="c")
+        plt.bar(np.arange(len(max_grads)),
+                ave_grads,
+                alpha=0.1,
+                lw=1,
+                color="b")
         plt.hlines(0, 0, len(ave_grads) + 1, lw=2, color="k")
         plt.xticks(range(0, len(ave_grads), 1), layers, rotation="vertical")
         plt.xlim(left=0, right=len(ave_grads))
-        plt.ylim(bottom=-0.001, top=0.02)  # zoom in on the lower gradient regions
+        plt.ylim(bottom=-0.001,
+                 top=0.02)  # zoom in on the lower gradient regions
         plt.xlabel("Layers")
         plt.ylabel("average gradient")
         plt.title("Gradient flow")
         plt.grid(True)
-        plt.legend([Line2D([0], [0], color="c", lw=4),
-                    Line2D([0], [0], color="b", lw=4),
-                    Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+        plt.legend([
+            Line2D([0], [0], color="c", lw=4),
+            Line2D([0], [0], color="b", lw=4),
+            Line2D([0], [0], color="k", lw=4)
+        ], ['max-gradient', 'mean-gradient', 'zero-gradient'])
         plt.savefig(os.path.join(self.plots_dir, 'grad_flow.png'))
